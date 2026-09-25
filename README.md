@@ -214,3 +214,4 @@ php integrations/affichat-laravel/tests/test-channel.php
 ## 📄 Lisensi
 
 MIT License.
+
