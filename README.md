@@ -1,25 +1,30 @@
 # AffiChat Laravel Notification Channel
 
-Official WhatsApp Notification Channel and PHP Client for Laravel using the **[AffiChat Gateway](https://chat.affidev.com)**.
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/affidev/affichat.svg?color=00A884)](https://packagist.org/packages/affidev/affichat)
+[![Total Downloads](https://img.shields.io/packagist/dt/affidev/affichat.svg)](https://packagist.org/packages/affidev/affichat)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Connects directly and securely to **`https://chat.affidev.com`** without requiring any manual server domain configuration.
+Channel notifikasi WhatsApp dan klien PHP resmi untuk framework Laravel menggunakan [AffiChat Gateway](https://chat.affidev.com).
 
----
-
-## 🚀 Fitur Utama
-
-- **Laravel Package Auto-Discovery**: Otomatis terdaftar di Laravel 9, 10, 11, dan 12 tanpa perlu mengubah `config/app.php`.
-- **Integrasi Bawaan Laravel Notification**: Cukup return `AffiChatMessage` di method `toAffiChat($notifiable)`.
-- **Fluent Message Builder**: Mendukung pesan teks, gambar, dokumen/PDF, video, lokasi GPS, vCard kontak, stiker, dan polling.
-- **Resolusi Penerima Otomatis**: Mendukung `routeNotificationForAffiChat()`, `routeNotificationForWhatsApp()`, atau property `$user->phone_number` / `$user->phone`.
-- **Normalisasi Nomor Telepon**: Format lokal (`0812...`, `+62...`, spasi, strip) otomatis disanitasi menjadi format standar `628...`.
-- **Facade Cepat (`AffiChat`)**: Kirim pesan langsung dari Controller atau Queue Job tanpa membuat class Notifikasi.
+Paket ini menghubungkan aplikasi Laravel langsung ke server gateway AffiChat tanpa memerlukan konfigurasi domain manual tambahan.
 
 ---
 
-## 📦 Instalasi
+## Fitur Utama
 
-Tambahkan paket ke proyek Laravel Anda via Composer:
+- **Laravel Package Auto-Discovery**: Otomatis terdaftar pada Laravel 9, 10, 11, dan 12 tanpa registrasi manual di `config/app.php`.
+- **Integrasi Notification Channel**: Mengembalikan objek `AffiChatMessage` pada method `toAffiChat($notifiable)`.
+- **Fluent Message Builder**: Mendukung pesan teks, gambar dengan caption, dokumen/PDF, video, lokasi GPS, vCard kontak, stiker, dan polling interaktif.
+- **Resolusi Penerima Otomatis**: Mendukung method `routeNotificationForAffiChat()`, `routeNotificationForWhatsApp()`, atau atribut `$user->phone_number` / `$user->phone`.
+- **Sanitasi Nomor Otomatis**: Format lokal (`08...`, `+62...`, karakter spasi, dan tanda hubung) otomatis dikonversi ke format standar E.164 (`628...`).
+- **Facade Klien (`AffiChat`)**: Kirim pesan langsung dari Controller, Service, atau Queue Job tanpa membuat class Notification terpisah.
+- **Verifikasi Webhook HMAC-SHA256**: Helper terpadu untuk memvalidasi keaslian payload event webhook masuk.
+
+---
+
+## Instalasi
+
+Tambahkan paket ke proyek Laravel melalui Composer:
 
 ```bash
 composer require affidev/affichat
@@ -33,25 +38,24 @@ php artisan vendor:publish --tag=affichat-config
 
 ---
 
-## ⚙️ Konfigurasi Environment (`.env`)
+## Konfigurasi Environment
 
-Buka file `.env` proyek Laravel Anda dan tambahkan kredensial AffiChat:
+Tambahkan variabel berikut ke file `.env` proyek Laravel Anda:
 
 ```env
-AFFICHAT_API_KEY=your_api_key_from_dashboard
+AFFICHAT_API_KEY=your_api_key_here
 AFFICHAT_SESSION_ID=default
 AFFICHAT_TIMEOUT=15
+AFFICHAT_WEBHOOK_SECRET=your_webhook_secret_here
 ```
-
-> **Catatan:** Seluruh pengiriman otomatis mengarah ke `https://chat.affidev.com`. Anda tidak perlu dan tidak bisa mengubah domain server gateway.
 
 ---
 
-## 📖 Cara Penggunaan
+## Cara Penggunaan
 
-### 1. Menyiapkan Model Notifiable (misal: `User.php`)
+### 1. Menyiapkan Model Notifiable
 
-Tambahkan method `routeNotificationForAffiChat` pada model Anda (atau pastikan model memiliki kolom `phone_number` / `phone`):
+Tambahkan routing nomor tujuan pada model yang mengimplementasikan trait `Notifiable` (misalnya `User.php`):
 
 ```php
 namespace App\Models;
@@ -59,14 +63,13 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable {
+class User extends Authenticatable
+{
     use Notifiable;
 
-    /**
-     * Tentukan nomor WhatsApp tujuan untuk channel AffiChat.
-     */
-    public function routeNotificationForAffiChat($notification): ?string {
-        return $this->phone_number; // e.g. "081234567890"
+    public function routeNotificationForAffiChat($notification): ?string
+    {
+        return $this->phone_number;
     }
 }
 ```
@@ -75,13 +78,13 @@ class User extends Authenticatable {
 
 ### 2. Membuat Class Notifikasi
 
-Buat class notifikasi baru menggunakan Artisan:
+Generate class notifikasi baru menggunakan Artisan:
 
 ```bash
 php artisan make:notification OrderStatusNotification
 ```
 
-Edit file `app/Notifications/OrderStatusNotification.php`:
+Buka dan sesuaikan isi file `app/Notifications/OrderStatusNotification.php`:
 
 ```php
 namespace App\Notifications;
@@ -89,25 +92,29 @@ namespace App\Notifications;
 use AffiChat\Laravel\Messages\AffiChatMessage;
 use Illuminate\Notifications\Notification;
 
-class OrderStatusNotification extends Notification {
+class OrderStatusNotification extends Notification
+{
     protected $order;
 
-    public function __construct($order) {
+    public function __construct($order)
+    {
         $this->order = $order;
     }
 
-    public function via($notifiable): array {
+    public function via($notifiable): array
+    {
         return ['affichat'];
     }
 
-    public function toAffiChat($notifiable): AffiChatMessage {
-        return AffiChatMessage::create("Halo {$notifiable->name}, pesanan #{$this->order->id} telah berhasil diproses!")
+    public function toAffiChat($notifiable): AffiChatMessage
+    {
+        return AffiChatMessage::create("Halo {$notifiable->name}, pesanan #{$this->order->id} telah berhasil diproses.")
             ->sessionId('default');
     }
 }
 ```
 
-Kirim notifikasi seperti biasa:
+Kirim notifikasi melalui instance model:
 
 ```php
 $user->notify(new OrderStatusNotification($order));
@@ -117,33 +124,37 @@ $user->notify(new OrderStatusNotification($order));
 
 ### 3. Ragam Tipe Pesan (`AffiChatMessage`)
 
-#### A. Pesan Gambar dengan Caption
+#### Gambar dengan Caption
 ```php
-public function toAffiChat($notifiable): AffiChatMessage {
+public function toAffiChat($notifiable): AffiChatMessage
+{
     return AffiChatMessage::create()
         ->image('https://tokosaya.com/promo.jpg', 'Katalog Promo Mingguan');
 }
 ```
 
-#### B. Mengirim Invoice Dokumen / PDF
+#### Dokumen atau Faktur PDF
 ```php
-public function toAffiChat($notifiable): AffiChatMessage {
+public function toAffiChat($notifiable): AffiChatMessage
+{
     return AffiChatMessage::create()
         ->document('https://tokosaya.com/invoice-1024.pdf', 'Invoice-1024.pdf');
 }
 ```
 
-#### C. Mengirim Lokasi Toko / Cabang
+#### Lokasi GPS
 ```php
-public function toAffiChat($notifiable): AffiChatMessage {
+public function toAffiChat($notifiable): AffiChatMessage
+{
     return AffiChatMessage::create()
         ->location(-6.200000, 106.816666, 'AffiChat Headquarter', 'Jakarta Selatan');
 }
 ```
 
-#### D. Mengirim Polling Interaktif
+#### Polling Interaktif
 ```php
-public function toAffiChat($notifiable): AffiChatMessage {
+public function toAffiChat($notifiable): AffiChatMessage
+{
     return AffiChatMessage::create()
         ->poll('Apakah pesanan Anda telah sampai?', ['Sudah, Sangat Puas', 'Sudah, Ada Kendala', 'Belum'], false);
 }
@@ -151,28 +162,25 @@ public function toAffiChat($notifiable): AffiChatMessage {
 
 ---
 
-### 4. Mengirim Pesan Instan via Facade `AffiChat`
+### 4. Mengirim Pesan Langsung via Facade `AffiChat`
 
-Jika Anda ingin mengirim pesan langsung di dalam Controller atau Event Listener tanpa membuat class Notification:
+Kirim pesan langsung tanpa membuat class Notification:
 
 ```php
 use AffiChat\Laravel\Facades\AffiChat;
 
-// Kirim teks
-AffiChat::sendText('081234567890', 'Kode OTP Anda adalah: 582910');
+AffiChat::sendText('081234567890', 'Kode verifikasi Anda adalah 582910.');
 
-// Kirim gambar
-AffiChat::sendImage('081234567890', 'https://example.com/banner.png', 'Promo Spesial');
+AffiChat::sendImage('081234567890', 'https://tokosaya.com/banner.png', 'Promo Spesial');
 
-// Cek status API Key
-$status = AffiChat::checkApiKey();
+$keyStatus = AffiChat::checkApiKey();
 ```
 
 ---
 
-### 5. Menangani Webhook Masuk (Signature Verification)
+### 5. Memproses Webhook Masuk (HMAC Signature Verification)
 
-AffiChat Gateway mengirimkan notifikasi event masuk (`messages.upsert`, `session.status`) dengan tanda tangan kriptografi HMAC-SHA256 pada header `X-AffiChat-Signature`:
+Server AffiChat menyertakan tanda tangan HMAC-SHA256 pada header `X-AffiChat-Signature` untuk setiap event masuk:
 
 ```php
 use Illuminate\Http\Request;
@@ -180,19 +188,18 @@ use AffiChat\Laravel\Webhook\AffiChatWebhook;
 
 Route::post('/webhook/affichat', function (Request $request) {
     $signature = $request->header('X-AffiChat-Signature');
-    $secret = config('affichat.webhook_secret'); // atau env('AFFICHAT_WEBHOOK_SECRET')
+    $secret    = config('affichat.webhook_secret');
 
-    // Verifikasi tanda tangan kriptografi
+    // Body mentah wajib digunakan untuk memvalidasi digest HMAC-SHA256
     if (!AffiChatWebhook::verifySignature($request->getContent(), $signature, $secret)) {
         return response()->json(['error' => 'Invalid signature'], 401);
     }
 
     $payload = AffiChatWebhook::parsePayload($request->getContent());
-    $event = $payload['event'] ?? '';
+    $event   = $payload['event'] ?? '';
 
     if ($event === 'messages.upsert') {
         $message = $payload['data'];
-        // Proses pesan masuk...
     }
 
     return response()->json(['status' => 'success']);
@@ -201,17 +208,16 @@ Route::post('/webhook/affichat', function (Request $request) {
 
 ---
 
-## 🧪 Pengujian Mandiri (CLI Test)
+## Pengujian Mandiri
 
-Modul ini dilengkapi dengan runner pengujian mandiri tanpa memerlukan instalasi Laravel penuh:
+Paket ini menyediakan skrip pengujian mandiri tanpa memerlukan instalasi penuh aplikasi Laravel:
 
-```powershell
+```bash
 php integrations/affichat-laravel/tests/test-channel.php
 ```
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
 MIT License.
-
